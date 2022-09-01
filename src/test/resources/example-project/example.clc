@@ -1,0 +1,27 @@
+// This is a comment
+
+// Example code for the clc-language
+
+// you can include other source files
+#include "example-include.clc"
+
+// Int is currently only supported as 16-bit number
+// declare arrays as following: datatype[]
+int[] numbers = { 3, 0 };
+//                          close statements with a ;
+
+// declare function with return type, name and arguments
+int add(int x, int y) {
+    numbers[0] = numbers[0] + 1;
+
+    return x + y;
+}
+
+// the "void main()" method is the entry point for programs
+void main() {
+
+    // access arrays with [] brackets
+    numbers[1] = add(numbers[0], testInt);
+
+}
+
