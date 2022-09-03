@@ -38,6 +38,14 @@ class Line {
         this.num = lineNum;
     }
 
+    public Line(String content, Line line) {
+        this.fName = line.fName;
+        this.path = line.path;
+        this.absPath = line.absPath;
+        this.s = content;
+        this.num = line.num;
+    }
+
     public int length() {
         return s.length();
     }

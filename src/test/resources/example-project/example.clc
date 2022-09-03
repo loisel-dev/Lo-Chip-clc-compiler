@@ -7,8 +7,19 @@
 
 // Int is currently only supported as 16-bit number
 // declare arrays as following: datatype[]
+int easyTestVar = 0;
 int[] numbers = { 3, 0 };
+int[] nums = {1};
+int[] otherArray = [3];     // declare without setting values
+int lonelyNum41 = ((1 + 3) + 5);
 //                          close statements with a ;
+
+void testFun() {
+}
+
+void testFun2() {
+    int i = 3;
+}
 
 // declare function with return type, name and arguments
 int add(int x, int y) {
@@ -21,7 +32,26 @@ int add(int x, int y) {
 void main() {
 
     // access arrays with [] brackets
+    add(testInt + 5, testInt);
+    add(testInt + add(1, 2), testInt);
+    add(numbers[0], testInt);
+    int testAddVar = add(1, 3);
     numbers[1] = add(numbers[0], testInt);
+
+    int i = 4;
+    while(1) {
+        i = i + 1;
+
+        if(i == 10) {
+            i = 0;
+        }
+    }
+
+    if(numbers[0] > numbers[1]) {
+        numbers[1] = numbers[0];
+    } else {
+        numbers[0] = numbers[1];
+    }
 
 }
 
