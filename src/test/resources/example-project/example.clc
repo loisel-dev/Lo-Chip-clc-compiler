@@ -51,6 +51,8 @@ void main() {
 
         if(i == 5) {
             i = 10;
+        } else if (i == 3) {
+            i = 5;
         }
     }
 

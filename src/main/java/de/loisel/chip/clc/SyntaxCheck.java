@@ -671,7 +671,7 @@ interface SyntaxCheck {
                     throw new SyntaxErrorException(allLines.get(index + countLines),
                             "Expected \"(\" after else if, got: \"" + allLines.get(index + countLines).s + "\".");
 
-                countLines += checkSynMathExpInBrackets(allLines, index + 2);
+                countLines += checkSynMathExpInBrackets(allLines, index + countLines);
 
                 if(!allLines.get(index + countLines).s.equals("{"))
                     throw new SyntaxErrorException(allLines.get(index + countLines),
