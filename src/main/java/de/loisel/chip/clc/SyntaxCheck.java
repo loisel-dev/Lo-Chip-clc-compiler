@@ -153,7 +153,7 @@ interface SyntaxCheck {
         int countLines;
 
         // find '}'
-        int closingIndex = 0;
+        int closeIndex = 0;
         Deque<Character> stack = new ArrayDeque<>();
         stack.push('{');
         for (int i = index + 1; i < allLines.size(); i++) {
@@ -162,19 +162,19 @@ interface SyntaxCheck {
             else if (allLines.get(i).s.equals("}"))
                 stack.pop();
             if (stack.isEmpty()) {
-                closingIndex = i;
+                closeIndex = i;
                 break;
             }
         }
-        if(closingIndex == 0 || !allLines.get(index).absPath.equals(allLines.get(closingIndex).absPath)) {
+        if(closeIndex == 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
             throw new SyntaxErrorException(allLines.get(index), "Code-block was not closed");
         }
 
-        countLines = closingIndex + 1 - index;
+        countLines = closeIndex + 1 - index;
 
         // check content of Code block
         int nextIndex = -1;
-        for (int i = index + 1; i < closingIndex; i++) {
+        for (int i = index + 1; i < closeIndex; i++) {
             if (i < nextIndex)
                 continue;
 
@@ -227,7 +227,7 @@ interface SyntaxCheck {
      * @param index of array name
      * @return lines to skip
      */
-    static int checkSynArrAssign(List<Line> allLines, int index) {
+    static int checkSynArrAssign(List<Line> allLines, int index) {  // Todo: allow complex mathematical expressions in []
         int countLines;
 
         // always
@@ -265,6 +265,49 @@ interface SyntaxCheck {
     }
 
     /**
+     * Check the access of an array <br>
+     * e.g.: "arrName[i + 1]"
+     * @param index Index of array name in allLines
+     * @return lines to skip
+     */
+    static int checkSynArrAccess(List<Line> allLines, int index) {
+        int countLines = 0;
+
+        if(!isVariableName(allLines.get(index).s))
+            throw new SyntaxErrorException(allLines.get(index),
+                    "Expected array name instead got: \"" + allLines.get(index).s + "\"."
+                    );
+        if(index >= allLines.size() || !allLines.get(index + 1).s.equals("["))
+            throw new SyntaxErrorException(allLines.get(index),
+                    "Expected \"[\" for array access, got:" + allLines.get(index).s + "\".");
+
+        // check for closing ']'
+        Deque<Character> stack = new ArrayDeque<>();
+        int closeIndex = -1;
+        for (int i = index + 1; i < allLines.size(); i++) {
+            if (allLines.get(i).s.equals("[")) {
+                stack.push('[');
+            } else if (allLines.get(i).s.equals("]")) {
+                stack.pop();
+                if(stack.isEmpty()) {
+                    closeIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+            throw new SyntaxErrorException(allLines.get(index), "No closing ']' found for array access.");
+        }
+
+        countLines += closeIndex - index + 1;
+
+        checkMathExp(allLines.subList(index + 2, closeIndex));
+
+        return countLines;
+    }
+
+    /**
      * check math expression for assignment <br>
      * Always ends with ;
      * @param index Index where expression begins
@@ -273,16 +316,21 @@ interface SyntaxCheck {
     static int checkAssignMath(List<Line> allLines, int index) {
         int countLines;
 
-        int endIndex = -1;
-        for (int i = index; i < allLines.size() && endIndex == -1; i++) {
-            if (allLines.get(i).s.equals(";"))
-                endIndex = i;
+        int closeIndex = -1;
+        for (int i = index; i < allLines.size(); i++) {
+            if (allLines.get(i).s.equals(";")) {
+                closeIndex = i;
+                break;
+            }
         }
-        if (endIndex == -1)
+        if (closeIndex == -1)
             throw new SyntaxErrorException(allLines.get(index), "No ';' after variable assignment found");
-        countLines = endIndex - index + 1;
+        countLines = closeIndex - index + 1;
 
-        List<Line> subList = allLines.subList(index, endIndex);
+        List<Line> subList = allLines.subList(index, closeIndex);
+
+        if(subList.isEmpty())
+            throw new SyntaxErrorException(allLines.get(index), "No value found");
 
         checkMathExp(subList);
 
@@ -296,55 +344,228 @@ interface SyntaxCheck {
      * @param lines List of lines that contain the expression
      */
     static void checkMathExp(List<Line> lines) {
+        if(lines.isEmpty())
+            throw new SyntaxErrorException(new Line("", "ERR", -1),
+                    "Critical Error in checkMathExp. Empty list. No mathematical expression was found. This Could be a internal error"
+                    );
+
         balancedParenthesis(lines);
 
-        if (lines.get(0).s.equals("*") || lines.get(0).s.equals("/"))
+        if (lines.get(0).s.equals("*") || lines.get(0).s.equals("/") || lines.get(0).s.equals("["))
             throw new SyntaxErrorException(lines.get(0), "Unexpected \"" + lines.get(0).s + "\"");
 
+        String last = "START";
+
+        int nextIndex = -1;
         for (int i = 0; i < lines.size(); i++) {
-            String val = lines.get(i).s;
+            if(i < nextIndex)
+                continue;
 
-            if (!val.matches("^[a-zA-Z_$\\d()+\\-*/\\[\\]]*$"))       // anything unexpected that not should be here
-                throw new SyntaxErrorException(lines.get(i), "What does \"" + val + "\" do there?");
+            Line line = lines.get(i);
+            boolean hasNext = i + 1  < lines.size();
 
-            else if (
-                    Arrays.asList(Compiler.MATH_OPERATORS).contains(val)
-                            && i + 1 == lines.size()
-            ) {                                                 // Math operators
-                throw new SyntaxErrorException(lines.get(i), "What does \"" + val + "\" do there alone?");
-            } else if (
-                    Arrays.asList(Compiler.MATH_OPERATORS).contains(val)
-                            && !isVariableName(lines.get(i + 1).s)
-                            && !isNum(lines.get(i + 1).s)
-                            && !lines.get(i + 1).s.equals("(")
-            ) {
-                throw new SyntaxErrorException(lines.get(i), "Could not parse expression");
-            } else if (
-                    val.equals("(")                               // '(' Bracket
-                            && !Arrays.asList(Compiler.MATH_OPERATORS).contains(val)
-                            && !isVariableName(lines.get(i + 1).s)
-                            && !isNum(lines.get(i + 1).s)
-                            && !lines.get(i + 1).s.equals("(")
-            ) {
-                throw new SyntaxErrorException(lines.get(i + 1), "Unexpected \"" + lines.get(i + 1).s + "\"");
-            } else if (
-                    i + 1 < lines.size()
-                            && val.equals(")")
-                            && (isNum(lines.get(i + 1).s) || isVariableName(lines.get(i + 1).s))
-            ) {
-                throw new SyntaxErrorException(lines.get(i + 1), "Unexpected \"" + lines.get(i + 1).s + "\"");
+            switch (last) {
+                case "START": {
+                if (
+                           line.s.equals("*")
+                        || line.s.equals("/")
+                        || line.s.equals("[")
+                        || Arrays.asList(Compiler.BOOL_OPERATORS).contains(line.s)
+                )
+                        throw new SyntaxErrorException(line, "Unexpected \"" + line.s + "\"");
+                    if (line.s.equals("(")) {
+                        // start new checkMathExp recursively
+                        nextIndex = i + checkSynMathExpInBrackets(lines, i);
+                        last = "VAL";
+                    }
+                    else if (isVariableName(line.s) && hasNext && lines.get(i + 1).s.equals("(")) {
+                        nextIndex = i + checkSynInFunCall(lines, i);
+                        last = "VAL";
+                    }
+                    else if (isVariableName(line.s) && hasNext && lines.get(i + 1).s.equals("[")) {
+                        nextIndex = i + checkSynArrAccess(lines, i);
+                        last = "VAL";
+                    }
+                    else if (isVariableName(line.s) || isNum(line.s))
+                        last = "VAL";
+                    else if (line.s.equals("-") || line.s.equals("+"))
+                        last = "SIGN";
+                    else
+                        throw new SyntaxErrorException(line,
+                                "Unexpected sign at begin of math. expression: \"" + line.s + "\".");
+                    break;
+                }
+                case "VAL": {
+                    if (Arrays.asList(Compiler.MATH_OPERATORS).contains(line.s)
+                            || Arrays.asList(Compiler.BOOL_OPERATORS).contains(line.s)) {
+                        last = "SIGN";
+                    }
+                    else
+                        throw new SyntaxErrorException(line, "After value got unexpected: " + line.s + "\".");
+                    break;
+                }
+                case "SIGN": {
+                    if (line.s.equals("(")) {
+                        // start new checkMathExp recursively
+                        nextIndex = i + checkSynMathExpInBrackets(lines, i);
+                        last = "VAL";
+                    }
+                    else if (isVariableName(line.s) && hasNext && lines.get(i + 1).s.equals("(")) {
+                        nextIndex = i + checkSynInFunCall(lines, i);
+                        last = "VAL";
+                    }
+                    else if (isVariableName(line.s) && hasNext && lines.get(i + 1).s.equals("[")) {
+                        nextIndex = i + checkSynArrAccess(lines, i);
+                        last = "VAL";
+                    }
+                    else if (isVariableName(line.s) || isNum(line.s))
+                        last = "VAL";
+                    else
+                        throw new SyntaxErrorException(line, "After operator got unexpected: " + line.s + "\".");
+                    break;
+                }
+                default:
+                    break;
             }
+        }
+
+        if(last.equals("SIGN")) {
+            throw new SyntaxErrorException(lines.get(lines.size() - 1),
+                    "\"" + lines.get(lines.size() - 1).s + "\" cannot stand alone.");
         }
     }
 
     /**
-     * check syntax of a variable assignment
-     *
+     * Check mathematical expression that is in "()" brackets
+     * @param index Index where the "(" is located
+     * @return lines to skip
+     */
+    static int checkSynMathExpInBrackets(List<Line> allLines, int index) {
+
+        // find closing ')'
+        Deque<Character> stack = new ArrayDeque<>();
+        int closeIndex = -1;
+        for (int i = index; i < allLines.size(); i++) {
+            if(allLines.get(i).s.equals("("))
+                stack.push('(');
+            else if(allLines.get(i).s.equals(")")) {
+                stack.pop();
+                if(stack.isEmpty()) {
+                    closeIndex = i;
+                    break;
+                }
+            }
+        }
+        if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+            throw new SyntaxErrorException(allLines.get(index), "No closing ')' found for function call.");
+        }
+        checkMathExp(allLines.subList(index + 1, closeIndex));
+        return closeIndex - index + 1;
+    }
+
+    /**
+     * check syntax of a variable assignment<br>
+     * e.g.: "testVar = 5 + otherTestVar;"
      * @param index of variable name
      * @return lines to skip
      */
     static int checkSynVarAssign(List<Line> allLines, int index) {
+        int countLines;
+
+        if(!isVariableName(allLines.get(index).s)) {
+            throw new SyntaxErrorException(allLines.get(index),
+                    "Expected variable name, got: \"" + allLines.get(index).s + "\"");
+        }
+        if(!allLines.get(index + 1).s.equals("=")) {
+            throw new SyntaxErrorException(allLines.get(index),
+                    "Expected \"=\" for assignment, got: \"" + allLines.get(index).s + "\"");
+        }
+
+        // check for closing ';'
+        int closeIndex = -1;
+        for (int i = index + 3; i < allLines.size(); i++) {
+            if (allLines.get(i).s.equals(";")) {
+                closeIndex = i;
+                break;
+            }
+        }
+        if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+            throw new SyntaxErrorException(allLines.get(index), "No closing ';' found for assignment.");
+        }
+
+        countLines = closeIndex - index + 1;
+
+        List<Line> expr = allLines.subList(index + 2, closeIndex);
+        if(expr.isEmpty())
+            throw new SyntaxErrorException(allLines.get(index), "Value for assignment is missing.");
+        checkMathExp(expr);
+
+        return countLines;
+    }
+
+    /**
+     * Check for an function call in e.g. mathematical expressions
+     * @param index Index where the function name is in allLines
+     * @return how many lines the function call goes
+     */
+    static int checkSynInFunCall(List<Line> allLines, int index) {
         int countLines = 0;
+
+        if(!isVariableName(allLines.get(index).s))
+            throw new SyntaxErrorException(allLines.get(index),
+                    "Expected function name, got:\"" + allLines.get(index).s + "\".");
+        if(allLines.size() <= index + 1 && !allLines.get(index + 1).s.equals("("))
+            throw new SyntaxErrorException(allLines.get(index),
+                    "Expected \"(\" bracket at function call, got:\"" + allLines.get(index).s + "\".");
+
+        // find closing ')'
+        Deque<Character> stack = new ArrayDeque<>();
+        int closeIndex = -1;
+        for (int i = index + 1; i < allLines.size(); i++) {
+            if(allLines.get(i).s.equals("("))
+                stack.push('(');
+            else if(allLines.get(i).s.equals(")")) {
+                stack.pop();
+                if(stack.isEmpty()) {
+                    closeIndex = i;
+                    break;
+                }
+            }
+        }
+        if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+            throw new SyntaxErrorException(allLines.get(index), "No closing ')' found for function call.");
+        }
+
+        countLines += closeIndex - index + 1;
+
+        List<Line> arguments = allLines.subList(index + 2, closeIndex - 1);
+        balancedParenthesis(arguments);
+
+        // now we have to check for arguments
+        // it is a little more complicated
+        // at first we have to check that all brackets are matching.
+        // If all are closed we can look for a ','.
+        // If not, either we hit the end or the argument continues.
+        // When we found a whole argument we send it to check for mathematical expression
+        // After that we have to check the next argument.
+        stack = new ArrayDeque<>();
+        int nextArgIndex = 0;
+        for(int i = nextArgIndex; i < arguments.size(); i++) {
+
+            if(arguments.get(i).s.equals("(") || arguments.get(i).s.equals("["))
+                stack.push(arguments.get(i).s.charAt(0));
+            else if(arguments.get(i).s.equals(")") || arguments.get(i).s.equals("]"))
+                stack.pop();
+            else if(stack.isEmpty() && arguments.get(i).s.equals(",")) {
+                checkMathExp(arguments.subList(nextArgIndex, i));
+                nextArgIndex = i + 1;
+            }
+            else if(stack.isEmpty() && i == arguments.size() - 1) {
+                checkMathExp(arguments.subList(nextArgIndex, i + 1));
+                nextArgIndex = i + 2;
+            }
+
+        }
 
         return countLines;
     }
@@ -356,7 +577,7 @@ interface SyntaxCheck {
      * @return lines to skip
      */
     static int checkSynLineFunCall(List<Line> allLines, int index) {
-        int countLines = 0;
+        int countLines;
 
         if(!isVariableName(allLines.get(index).s)) {
             throw new SyntaxErrorException(allLines.get(index),
@@ -377,7 +598,7 @@ interface SyntaxCheck {
         }
 
         if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
-            throw new SyntaxErrorException(allLines.get(index), "No closing ';' found.");
+            throw new SyntaxErrorException(allLines.get(index), "No closing ';' found for function call.");
         }
         if(allLines.size() < closeIndex + 1 || !allLines.get(closeIndex).s.equals(";")) {
             throw new SyntaxErrorException(allLines.get(index), "No closing ';' found.");
@@ -386,36 +607,7 @@ interface SyntaxCheck {
             throw new SyntaxErrorException(allLines.get(index), "No closing ')' found.");
         }
 
-        countLines = closeIndex - index + 1;
-
-        List<Line> arguments = allLines.subList(index + 2, closeIndex - 1);
-        balancedParenthesis(arguments);
-
-        // now we have to check for arguments
-        // it is a little more complicated
-        // at first we have to check that all brackets are matching.
-        // If all are closed we can look for a ','.
-        // If not, either we hit the end or the argument continues.
-        // When we found a whole argument we send it to check for mathematical expression
-        // After that we have to check the next argument.
-        Deque<Character> stack = new ArrayDeque<>();
-        int nextArgIndex = 0;
-        for(int i = nextArgIndex; i < arguments.size(); i++) {
-
-            if(arguments.get(i).s.equals("(") || arguments.get(i).s.equals("["))
-                stack.push(arguments.get(i).s.charAt(0));
-            else if(arguments.get(i).s.equals(")") || arguments.get(i).s.equals("]"))
-                stack.pop();
-            else if(stack.isEmpty() && arguments.get(i).s.equals(",")) {
-                checkMathExp(arguments.subList(nextArgIndex, i));
-                nextArgIndex = i + 1;
-            }
-            else if(stack.isEmpty() && i == arguments.size() - 1) {
-                checkMathExp(arguments.subList(nextArgIndex, i + 1));
-                nextArgIndex = i + 2;
-            }
-
-        }
+        countLines = checkSynInFunCall(allLines, index) + 1;
 
         return countLines;
     }
@@ -444,11 +636,64 @@ interface SyntaxCheck {
     /**
      * check syntax of an if condition
      *
-     * @param index of if
+     * @param index Index of if in allLines
      * @return lines to skip
      */
     static int checkSynIfCond(List<Line> allLines, int index) {
         int countLines = 0;
+
+        if(!allLines.get(index).s.equals("if"))
+            throw new SyntaxErrorException(allLines.get(index),
+                    "Expected \"if\" at start of if-condition, got: \"" + allLines.get(index).s + "\".");
+        countLines ++;
+
+        if(!allLines.get(index + 1).s.equals("("))
+            throw new SyntaxErrorException(allLines.get(index + 1),
+                    "Expected \"(\" for the condition if, got: \"" + allLines.get(index + 1).s + "\".");
+
+        countLines += checkSynMathExpInBrackets(allLines, index + 1);
+
+        if(!allLines.get(index + countLines).s.equals("{"))
+            throw new SyntaxErrorException(allLines.get(index + countLines),
+                    "Expected \"{\" for the code block after if(), got: \"" + allLines.get(index + countLines).s + "\".");
+
+        countLines += checkSynCodeBlock(allLines, index + countLines);
+
+        int nextIndex = -1;
+        for (int i = index + countLines; i < allLines.size(); i++) {
+            if(i < nextIndex)
+                continue;
+
+            if(i + 1 < allLines.size() && allLines.get(i).s.equals("else") && allLines.get(i + 1).s.equals("if")) {
+                countLines += 2;
+
+                if(!allLines.get(index + countLines).s.equals("("))
+                    throw new SyntaxErrorException(allLines.get(index + countLines),
+                            "Expected \"(\" after else if, got: \"" + allLines.get(index + countLines).s + "\".");
+
+                countLines += checkSynMathExpInBrackets(allLines, index + 2);
+
+                if(!allLines.get(index + countLines).s.equals("{"))
+                    throw new SyntaxErrorException(allLines.get(index + countLines),
+                            "Expected \"{\" for the code block after else if(), got: \"" + allLines.get(index + countLines).s + "\".");
+
+                countLines += checkSynCodeBlock(allLines, index + countLines);
+
+                nextIndex = index + countLines;
+            } else if (i + 1 < allLines.size() && allLines.get(i).s.equals("else")) {
+                countLines ++;
+
+                if(!allLines.get(index + countLines).s.equals("{"))
+                    throw new SyntaxErrorException(allLines.get(index + countLines),
+                            "Expected \"{\" for the code block after else, got: \"" + allLines.get(index + countLines).s + "\".");
+
+                countLines += checkSynCodeBlock(allLines, index + countLines);
+
+                nextIndex = index + countLines;
+            } else {
+                break; // no "else if" or "else" found
+            }
+        }
 
         return countLines;
     }
@@ -456,11 +701,28 @@ interface SyntaxCheck {
     /**
      * check syntax of a while loop
      *
-     * @param index of while
+     * @param index Index of while in allLines
      * @return lines to skip
      */
     static int checkSynWhileLoop(List<Line> allLines, int index) {
         int countLines = 0;
+
+        if(!allLines.get(index).s.equals("while"))
+            throw new SyntaxErrorException(allLines.get(index),
+                    "Expected \"while\" at start of loop, got: \"" + allLines.get(index).s + "\".");
+        countLines ++;
+
+        if(!allLines.get(index + 1).s.equals("("))
+            throw new SyntaxErrorException(allLines.get(index + 1),
+                    "Expected \"(\" for the condition at while loop, got: \"" + allLines.get(index + 1).s + "\".");
+
+        countLines += checkSynMathExpInBrackets(allLines, index + 1);
+
+        if(!allLines.get(index + countLines).s.equals("{"))
+            throw new SyntaxErrorException(allLines.get(index + countLines),
+                    "Expected \"{\" for the code block after while(), got: \"" + allLines.get(index + countLines).s + "\".");
+
+        countLines += checkSynCodeBlock(allLines, index + countLines);
 
         return countLines;
     }
@@ -509,7 +771,7 @@ interface SyntaxCheck {
             throw new SyntaxErrorException(allLines.get(index + 3), "Expected: '{' or '[' after '='.");
         }
 
-        if (allLines.get(index + 5).s.equals("[")) {             // check: int name = [3];
+        if (allLines.get(index + 5).s.equals("[")) {             // check if : "int name = [3];"
 
             if (allLines.size() <= index + 8 || !file.equals(allLines.get(index + 8).absPath)) {
                 throw new SyntaxErrorException(allLines.get(index + 6),
@@ -528,7 +790,7 @@ interface SyntaxCheck {
 
 
         }
-                                                                    // check: int name = { 3, ..., 1 };
+                                                                    // check if: "int name = { 3, ..., 1 };"
         else {
 
             // check for closing '}'
@@ -606,26 +868,26 @@ interface SyntaxCheck {
                 // bracket, then it must be closing. So stack
                 // cannot be empty at this point.
                 else if (stack.isEmpty())
-                    throw new CompilerParseException(line.num, "Unexpected " + x, line.fName);
+                    throwUnexpectedBracket(line);
                 else {
                     char check;
                     switch (x) {
                         case ')':
                             check = stack.pop();
                             if (check == '{' || check == '[')
-                                throw new CompilerParseException(line.num, "Unexpected " + x, line.fName);
+                                throwUnexpectedBracket(line);
                             break;
 
                         case '}':
                             check = stack.pop();
                             if (check == '(' || check == '[')
-                                throw new CompilerParseException(line.num, "Unexpected " + x, line.fName);
+                                throwUnexpectedBracket(line);
                             break;
 
                         case ']':
                             check = stack.pop();
                             if (check == '(' || check == '{')
-                                throw new CompilerParseException(line.num, "Unexpected " + x, line.fName);
+                                throwUnexpectedBracket(line);
                             break;
                         default:
                             // skip unimportant characters
@@ -680,8 +942,20 @@ interface SyntaxCheck {
 
     }
 
+
+
+    /*
+        ===========================
+        =========  TOOLS  =========
+        ===========================
+     */
+
+    private static void throwUnexpectedBracket(Line line) {
+        throw new CompilerParseException(line.num, "Unexpected: " + line.s, line.fName);
+    }
+
     private static boolean isNum(String number) {
-        return number.matches("\\d");
+        return number.matches("^[\\d]*$");
     }
 
     private static boolean isVariableName(String name) {

@@ -45,6 +45,9 @@ class Compiler {
     protected static final String[] MATH_OPERATORS = {
             "+", "-", "*", "/",
     };
+    protected static final String[] BOOL_OPERATORS = {
+            "<", ">", "==", "!=",
+    };
 
     private final List<Line> inLines;
     private List<String> assembly;
