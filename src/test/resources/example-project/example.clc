@@ -19,7 +19,10 @@ void testFun() {
 }
 
 void testFun2() {
-    int i = 5;
+    int i = +5;
+    i = 3 * (i + 5);
+
+    int[] inFunArr = { i, 10 };
 }
 
 // declare function with return type, name and arguments

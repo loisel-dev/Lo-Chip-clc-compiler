@@ -7,6 +7,8 @@ import java.util.List;
 
 interface SyntaxCheck {
 
+    String RETURN = "return";
+
     /**
      * check for clc Syntax over all lines
      */
@@ -22,12 +24,6 @@ interface SyntaxCheck {
             Line line = allLines.get(i);
 
             switch (line.s) {
-                case "#": {
-                    checkSynComStat(line);
-                    nextIndex = i;
-                    break;
-                }
-
                 case "int": {
                     if (allLines.size() <= i + 4)
                         throw new SyntaxErrorException(line, "Statement not complete");
@@ -182,7 +178,7 @@ interface SyntaxCheck {
 
             if ("while".equals(val)) {                           // while loop
                 nextIndex = i + checkSynWhileLoop(allLines, i);
-            } else if ("return".equals(val)) {                   // return statement
+            } else if (RETURN.equals(val)) {                   // return statement
                 nextIndex = i + checkSynReturn(allLines, i);
             } else if ("if".equals(val)) {                       // if condition
                 nextIndex = i + checkSynIfCond(allLines, i);
@@ -227,8 +223,8 @@ interface SyntaxCheck {
      * @param index of array name
      * @return lines to skip
      */
-    static int checkSynArrAssign(List<Line> allLines, int index) {  // Todo: allow complex mathematical expressions in []
-        int countLines;
+    static int checkSynArrAssign(List<Line> allLines, int index) {
+        int countLines = 0;
 
         // always
 
@@ -245,21 +241,12 @@ interface SyntaxCheck {
             throw new SyntaxErrorException(allLines.get(index),
                     "Expected [, got :\"" + allLines.get(index + 1).s + "\".");
         }
-        if(!allLines.get(index + 3).s.equals("]")) {    // missing ']'
-            throw new SyntaxErrorException(allLines.get(index),
-                    "Expected ], got :\"" + allLines.get(index + 3).s + "\".");
-        }
-        if(!isVariableName(allLines.get(index + 2).s)   // wrong index
-                && !isNum(allLines.get(index + 2).s)) {
-            throw new SyntaxErrorException(allLines.get(index),
-                    "Expected a number or variable as index, got :\"" + allLines.get(index + 2).s + "\".");
-        }
-        if(!allLines.get(index + 4).s.equals("=")) {    // missing '='
-            throw new SyntaxErrorException(allLines.get(index),
-                    "Expected =, got :\"" + allLines.get(index + 4).s + "\".");
-        }
 
-        countLines = 5 + checkAssignMath(allLines, index + 5);
+        countLines += checkSynArrAccess(allLines, index);
+
+        countLines += checkAssignMath(allLines, index + countLines + 1); // +1 for the '='
+
+        countLines++; // for ';'
 
         return countLines;
     }
@@ -504,7 +491,7 @@ interface SyntaxCheck {
     }
 
     /**
-     * Check for an function call in e.g. mathematical expressions
+     * Check for a function call in e.g. mathematical expressions
      * @param index Index where the function name is in allLines
      * @return how many lines the function call goes
      */
@@ -539,33 +526,7 @@ interface SyntaxCheck {
         countLines += closeIndex - index + 1;
 
         List<Line> arguments = allLines.subList(index + 2, closeIndex - 1);
-        balancedParenthesis(arguments);
-
-        // now we have to check for arguments
-        // it is a little more complicated
-        // at first we have to check that all brackets are matching.
-        // If all are closed we can look for a ','.
-        // If not, either we hit the end or the argument continues.
-        // When we found a whole argument we send it to check for mathematical expression
-        // After that we have to check the next argument.
-        stack = new ArrayDeque<>();
-        int nextArgIndex = 0;
-        for(int i = nextArgIndex; i < arguments.size(); i++) {
-
-            if(arguments.get(i).s.equals("(") || arguments.get(i).s.equals("["))
-                stack.push(arguments.get(i).s.charAt(0));
-            else if(arguments.get(i).s.equals(")") || arguments.get(i).s.equals("]"))
-                stack.pop();
-            else if(stack.isEmpty() && arguments.get(i).s.equals(",")) {
-                checkMathExp(arguments.subList(nextArgIndex, i));
-                nextArgIndex = i + 1;
-            }
-            else if(stack.isEmpty() && i == arguments.size() - 1) {
-                checkMathExp(arguments.subList(nextArgIndex, i + 1));
-                nextArgIndex = i + 2;
-            }
-
-        }
+        checkArgumentInList(arguments);
 
         return countLines;
     }
@@ -621,12 +582,12 @@ interface SyntaxCheck {
     static int checkSynReturn(List<Line> allLines, int index) {
         int countLines = 2;
 
-        if(!allLines.get(index).s.equals("return")) {
+        if(!allLines.get(index).s.equals(RETURN)) {
             throw new SyntaxErrorException(allLines.get(index),
                     "Expected \"return\", got: \"" + allLines.get(index).s + "\".");
         }
 
-        if(!allLines.get(index + 1).s.equals("return")) {       // got a return value
+        if(!allLines.get(index + 1).s.equals(RETURN)) {       // got a return value
             countLines += checkAssignMath(allLines, index + 1);
         }
 
@@ -691,7 +652,7 @@ interface SyntaxCheck {
 
                 nextIndex = index + countLines;
             } else {
-                break; // no "else if" or "else" found
+                nextIndex = allLines.size(); // no "else if" or "else" found
             }
         }
 
@@ -806,20 +767,10 @@ interface SyntaxCheck {
                 throw new SyntaxErrorException(allLines.get(index), "No closing '}' found.");
             } else if (((closeIndex - index) & 0b1) == 0 || (closeIndex - index) < 1) {
                 throw new SyntaxErrorException(allLines.get(index), "Cannot read value.");
-            } else {
-
-                int counter = 0;
-                while (index + 6 + counter < closeIndex) {      // check if there is alternating a number and a ','
-                    if (
-                            ((counter & 0b1) == 0 && !isNum(allLines.get(index + 6 + counter).s))
-                                    || ((counter & 0b1) == 1 && !allLines.get(index + 6 + counter).s.equals(","))
-                    ) {
-                        throw new SyntaxErrorException(allLines.get(index), "Cannot read value.");
-                    }
-                    counter++;
-                }
-
             }
+
+            List<Line> arguments = allLines.subList(index + 6, closeIndex - 1);
+            checkArgumentInList(arguments);
 
             if (!allLines.get(closeIndex + 1).s.equals(";")) {
                 throw new SyntaxErrorException(allLines.get(closeIndex),
@@ -829,6 +780,39 @@ interface SyntaxCheck {
         }
 
         return countLines;
+    }
+
+    /**
+     * Checks a list of arguments seperated by ',' <br>
+     * e.g.: "arg1, 5 + 6, 233"
+     * @param arguments Contains all lines with the arguments
+     */
+    static void checkArgumentInList(List<Line> arguments) {
+
+        // now we have to check for arguments
+        // it is a little more complicated
+        // at first we have to check that all brackets are matching.
+        // If all are closed we can look for a ','.
+        // If not, either we hit the end or the argument continues.
+        // When we found a whole argument we send it to check for mathematical expression
+        // After that we have to check the next argument.
+
+        balancedParenthesis(arguments);
+
+        Deque<Character> stack = new ArrayDeque<>();
+        int nextArgIndex = 0;
+        for(int i = nextArgIndex; i < arguments.size(); i++) {
+
+            if(arguments.get(i).s.equals("(") || arguments.get(i).s.equals("["))
+                stack.push(arguments.get(i).s.charAt(0));
+            else if(arguments.get(i).s.equals(")") || arguments.get(i).s.equals("]"))
+                stack.pop();
+            else if(stack.isEmpty() && arguments.get(i).s.equals(",")) {
+                checkMathExp(arguments.subList(nextArgIndex, i));
+                nextArgIndex = i + 1;
+            }
+
+        }
     }
 
     /**
@@ -955,7 +939,7 @@ interface SyntaxCheck {
     }
 
     private static boolean isNum(String number) {
-        return number.matches("^[\\d]*$");
+        return number.matches("^\\d*$");
     }
 
     private static boolean isVariableName(String name) {

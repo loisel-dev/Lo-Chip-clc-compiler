@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package de.loise.chip.clc;
+package de.loisel.chip.clc;
 
 import de.loisel.chip.clc.Clc;
 import org.junit.jupiter.api.MethodOrderer;

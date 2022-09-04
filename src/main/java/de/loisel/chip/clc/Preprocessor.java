@@ -59,7 +59,7 @@ class Preprocessor {
         for (Line line : lines) {
             String value = line.s;
 
-            if(value.charAt(0) == '#') {       // dont split compiler commands
+            if(value.charAt(0) == '#') {       // dont split preprocessor commands
                 splitLines.add(line);
                 continue;
             }
@@ -109,7 +109,6 @@ class Preprocessor {
         for (int i = 0; i < line.length(); i++) {
 
             for (String key : keys) {
-                //if(line.substring(i).indexOf(key) == 0)
                 if(line.indexOf(key, i) - i == 0)
                     return i;
             }
