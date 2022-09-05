@@ -16,10 +16,7 @@
 
 package de.loisel.chip.clc;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * the preprocessor "cleans" the files
@@ -40,13 +37,60 @@ class Preprocessor {
     public List<Line> process() {
 
         // Remove unnecessary stuff
-        List<Line> allLines = clearCode(files);
+        Map<String, List<Line>> clearedFiles = new HashMap<>();
+        files.forEach((name, file) -> clearedFiles.put(name, clearCode(name, file)));
+
+        List<Line> allLines = execPreprocessorCommands(clearedFiles);
 
         // Splitting lines until there is only one statement per line
 
         allLines = splitLines(allLines);
 
         return allLines;
+    }
+
+    private static List<Line> execPreprocessorCommands(Map<String, List<Line>> clearedFiles) {
+        List<Line> allLines = new ArrayList<>();
+
+        String startName = "";
+
+        for(Map.Entry<String, List<Line>> entry: clearedFiles.entrySet()) {
+            for (Line line : entry.getValue()) {
+                if(line.s.contains("int main()") && startName.isEmpty()) {
+                    startName = entry.getKey();
+                } else if(line.s.contains("int main()") && !startName.isEmpty()) {
+                    throw new PreprocessorException(line,
+                            "Found multiple entry points: \"" + startName + "\" and \"" + entry.getKey() + "\".");
+                }
+            }
+        }
+
+        if(startName.isEmpty())
+            throw new PreprocessorException(new Line("N.A.", "N.A.", -1), "No entry point was found.");
+
+        includeFile(clearedFiles, allLines, startName);
+
+
+
+        return allLines;
+    }
+
+    private static void includeFile(Map<String, List<Line>> clearedFiles, List<Line> allLines, String includeFile) {
+        for (Line line : clearedFiles.get(includeFile)) {
+            if(!line.s.contains("#include")) {
+                allLines.add(line);
+                continue;
+            }
+
+            for (Map.Entry<String, List<Line>> entry: clearedFiles.entrySet()) {
+                if(entry.getKey().contains(
+                        line.s.substring(line.s.indexOf('"') + 1, line.s.lastIndexOf('"'))
+                )) {
+                    includeFile(clearedFiles, allLines, entry.getKey());
+                }
+            }
+
+        }
     }
 
     private static List<Line> splitLines(List<Line> lines) {
@@ -118,26 +162,24 @@ class Preprocessor {
         return index;
     }
 
-    private static List<Line> clearCode(Map<String, List<String>> files) {
+    private static List<Line> clearCode(String name, List<String> file) {
         List<Line> lines = new ArrayList<>();
 
-        files.forEach((name, file) -> {
-            int lineNum = 1;
-            for (String line : file) {
-                if(line.contains("//"))
-                    line = line.substring(0, line.indexOf("//"));
-                line = line.strip();
+        int lineNum = 1;
+        for (String line : file) {
+            if(line.contains("//"))
+                line = line.substring(0, line.indexOf("//"));
+            line = line.strip();
 
-                line = line.replace('\t', ' ');
-                line = line.replaceAll("\s{2,}", " ");
+            line = line.replace('\t', ' ');
+            line = line.replaceAll("\s{2,}", " ");
 
-                // remove empty lines
-                if(!line.isEmpty())
-                    // add line-numbers to generate error messages later in the process
-                    lines.add(new Line(name, line, lineNum));
-                lineNum++;
-            }
-        });
+            // remove empty lines
+            if(!line.isEmpty())
+                // add line-numbers to generate error messages later in the process
+                lines.add(new Line(name, line, lineNum));
+            lineNum++;
+        }
 
         return lines;
     }

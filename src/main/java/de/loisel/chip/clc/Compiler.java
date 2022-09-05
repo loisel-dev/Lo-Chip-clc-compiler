@@ -58,19 +58,18 @@ class Compiler {
     }
 
     public List<String> compile() {
+        message(inLines.size() + " words and signs to compile.");
         comCode = new HashMap<>();
         assembly = new ArrayList<>();
 
-        parseAll(inLines);
+        // Syntax Check
+        SyntaxCheck.checkSyntax(inLines);
+        message("All files parsed successfully!");
+
+
 
         message("Compiled successfully!");
         return assembly;
-    }
-
-    private static void parseAll(List<Line> lines) {
-        SyntaxCheck.checkSyntax(lines);
-
-        message("All files parsed successfully!");
     }
 
     private static void message(String msg) {

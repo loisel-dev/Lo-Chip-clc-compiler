@@ -33,6 +33,7 @@ public class Clc {
     }
 
     public void compile() {
+        long startTime = System.currentTimeMillis();
         
         Preprocessor processor;
         Compiler compiler;
@@ -43,6 +44,10 @@ public class Clc {
         compiler = new Compiler(processedLines);
         assemblyProgram = compiler.compile();
         saveFile(assemblyProgram);
+
+        message("Took "
+                + (((double)System.currentTimeMillis() - (double)startTime) / 1000)
+                + " seconds to compile.");
     }
 
     private void saveFile(List<String> file) {
@@ -66,5 +71,9 @@ public class Clc {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void message(String msg) {
+        System.out.println("clc-Compiler: " + msg);
     }
 }
