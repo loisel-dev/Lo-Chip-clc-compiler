@@ -51,6 +51,7 @@ class Compiler {
 
     private final List<Line> inLines;
     private List<Line> assembly;
+    private List<Line> clcCode;
     private Map<String, List<String>> comCode;
 
     public Compiler(List<Line> inLines) {
@@ -63,10 +64,11 @@ class Compiler {
         assembly = new ArrayList<>();
 
         // Syntax Check
-        SyntaxCheck.checkSyntax(inLines);
+        SyntaxCheck synChecker = new SyntaxCheck(inLines);
+        clcCode = synChecker.checkSyntax();
         message("All files parsed successfully!");
 
-        assembly = AssemblyGenerator.generateAssembly(inLines);
+        assembly = AssemblyGenerator.generateAssembly(clcCode);
 
         message("Compiled successfully!");
         return assembly;
