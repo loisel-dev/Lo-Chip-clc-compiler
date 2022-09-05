@@ -21,6 +21,7 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import de.loisel.chip.clc.Line;
 
 import java.io.File;
 
@@ -32,7 +33,6 @@ class ExampleTest {
     final File FOLDER = new File("src/test/resources" + File.separator + "example-project");
 
     Clc compiler;
-
     @Test
     @Order(1)
     void loadExampleFilesTest() {

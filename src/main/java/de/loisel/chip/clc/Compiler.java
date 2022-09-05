@@ -50,14 +50,14 @@ class Compiler {
     };
 
     private final List<Line> inLines;
-    private List<String> assembly;
+    private List<Line> assembly;
     private Map<String, List<String>> comCode;
 
     public Compiler(List<Line> inLines) {
         this.inLines = inLines;
     }
 
-    public List<String> compile() {
+    public List<Line> compile() {
         message(inLines.size() + " words and signs to compile.");
         comCode = new HashMap<>();
         assembly = new ArrayList<>();
@@ -66,7 +66,7 @@ class Compiler {
         SyntaxCheck.checkSyntax(inLines);
         message("All files parsed successfully!");
 
-
+        assembly = AssemblyGenerator.generateAssembly(inLines);
 
         message("Compiled successfully!");
         return assembly;

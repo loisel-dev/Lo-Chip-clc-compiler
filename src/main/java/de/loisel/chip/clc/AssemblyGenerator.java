@@ -16,12 +16,23 @@
 
 package de.loisel.chip.clc;
 
-public class PreprocessorException extends RuntimeException {
+import java.util.ArrayList;
+import java.util.List;
+
+interface AssemblyGenerator {
+
     /**
-     * Constructs a new Exception when there was an error
-     * during preprocessing
+     * All lines must have the correct syntax and need to be free of
+     * preprocessor commands and comments.
+     * @param lines All lines In the correct order.
+     * @return the assembly code readable for the LoChipAssembler
      */
-    public PreprocessorException(Line line, String message) {
-        super("File " + line.fName + ": Preprocessor in line " + line + ": " + message);
+    static List<Line> generateAssembly(List<Line> lines) {
+        List<Line> assembly = new ArrayList<>();
+
+
+
+        return assembly;
     }
+
 }

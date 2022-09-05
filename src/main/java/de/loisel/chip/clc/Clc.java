@@ -26,7 +26,7 @@ public class Clc {
 
     Map<String, List<String>> files = new HashMap<>();
     List<Line> processedLines;
-    List<String> assemblyProgram;
+    List<Line> assemblyProgram;
 
     public Clc(File[] srcFiles) {
         loadFiles(srcFiles);
@@ -50,7 +50,7 @@ public class Clc {
                 + " seconds to compile.");
     }
 
-    private void saveFile(List<String> file) {
+    private void saveFile(List<Line> file) {
 
     }
 
