@@ -28,8 +28,9 @@ import java.io.File;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ExampleTest {
 
-    static final String FILE_1 = "example.clc";
-    static final String FILE_2 = "example-include.clc";
+    static final String FILE_1 = "easy-test.clc";
+    //static final String FILE_1 = "example.clc";
+    //static final String FILE_2 = "example-include.clc";
     final File FOLDER = new File("src/test/resources" + File.separator + "example-project");
 
     Clc compiler;
@@ -39,7 +40,7 @@ class ExampleTest {
 
         File[] files= {
                 new File(FOLDER.getAbsoluteFile() + File.separator + FILE_1),
-                new File(FOLDER.getAbsoluteFile() + File.separator + FILE_2)
+                //new File(FOLDER.getAbsoluteFile() + File.separator + FILE_2)
         };
 
         compiler = new Clc(files);

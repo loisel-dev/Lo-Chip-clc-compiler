@@ -25,6 +25,8 @@ class SyntaxCheck {
 
     private static final String RETURN = "return";
 
+    private final Coder coder = new Coder();
+
     List<Line> allLines;
     List<Line> clcCode;
 
@@ -53,26 +55,22 @@ class SyntaxCheck {
 
                     else if (allLines.get(i + 1).s.equals("[")
                             && allLines.get(i + 2).s.equals("]")) {     // array declaration
-                        nextIndex = i + checkSynArrDec(i);
+                        nextIndex = i + checkArrDec(i);
                     } else if (allLines.get(i + 2).s.equals("=")) {        // variable declaration
-                        nextIndex = i + checkSynVarDec(allLines, i);
+                        nextIndex = i + checkVarDec(allLines, i);
                     } else if (allLines.get(i + 2).s.equals("(")) {        // function declaration
-                        nextIndex = i + checkSynFunDec(i);
+                        nextIndex = i + checkFunDec(i);
                     }
                     break;
                 }
 
                 case "void": {
-                    nextIndex = i + checkSynFunDec(i);
+                    nextIndex = i + checkFunDec(i);
                     break;
                 }
 
                 default: {
-                    if (line.s.charAt(0) == '#') {
-                        checkSynComStat(line);
-                        nextIndex = i;
-                    } else
-                        throw new SyntaxErrorException(line, "Unexpected expression: \"" + line.s + "\"");
+                    throw new SyntaxErrorException(line, "Unexpected expression: \"" + line.s + "\"");
                 }
             }
 
@@ -87,7 +85,7 @@ class SyntaxCheck {
      * @param index of declaration
      * @return lines to skip
      */
-    private int checkSynFunDec(int index) {
+    private int checkFunDec(int index) {
         int countLines = 0;
 
         if (!Arrays.asList(Compiler.FUN_TYPES).contains(allLines.get(index).s))               // wrong return type
@@ -158,7 +156,7 @@ class SyntaxCheck {
         if (allLines.size() > roundClosingIndex + 1 && !allLines.get(roundClosingIndex + 1).s.equals("{"))
             throw new SyntaxErrorException(allLines.get(index), "Expected \"{\" after function definition");
 
-        countLines += checkSynCodeBlock(roundClosingIndex + 1);
+        countLines += checkCodeBlock(roundClosingIndex + 1);
 
         return countLines;
     }
@@ -169,7 +167,7 @@ class SyntaxCheck {
      * @param index start of the code-block ('{')
      * @return lines to skip
      */
-    private int checkSynCodeBlock(int index) {
+    private int checkCodeBlock(int index) {
         int countLines;
 
         // find '}'
@@ -186,7 +184,7 @@ class SyntaxCheck {
                 break;
             }
         }
-        if(closeIndex == 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+        if(closeIndex == 0) {
             throw new SyntaxErrorException(allLines.get(index), "Code-block was not closed");
         }
 
@@ -201,37 +199,37 @@ class SyntaxCheck {
             String val = allLines.get(i).s;
 
             if ("while".equals(val)) {                           // while loop
-                nextIndex = i + checkSynWhileLoop(allLines, i);
+                nextIndex = i + checkWhileLoop(allLines, i);
             } else if (RETURN.equals(val)) {                   // return statement
-                nextIndex = i + checkSynReturn(allLines, i);
+                nextIndex = i + checkReturn(allLines, i);
             } else if ("if".equals(val)) {                       // if condition
-                nextIndex = i + checkSynIfCond(allLines, i);
+                nextIndex = i + checkIfCond(allLines, i);
             } else if (                                          // array declaration
                     Arrays.asList(Compiler.VAR_TYPES).contains(val)
                             && allLines.size() > i + 1
                             && allLines.get(i + 1).s.equals("[")
             ) {
-                nextIndex = i + checkSynArrDec(i);
+                nextIndex = i + checkArrDec(i);
             } else if (Arrays.asList(Compiler.VAR_TYPES).contains(val)) { // variable declaration
-                nextIndex = i + checkSynVarDec(allLines, i);
+                nextIndex = i + checkVarDec(allLines, i);
             } else if (                                          // function call
                     isVariableName(val)
                             && allLines.size() > i + 1
                             && allLines.get(i + 1).s.equals("(")
             ) {
-                nextIndex = i + checkSynLineFunCall(allLines, i);
+                nextIndex = i + checkLineFunCall(allLines, i);
             } else if (                                          // variable assignment
                     isVariableName(val)
                             && allLines.size() > i + 1
                             && allLines.get(i + 1).s.equals("=")
             ) {
-                nextIndex = i + checkSynVarAssign(allLines, i);
+                nextIndex = i + checkVarAssign(allLines, i);
             } else if (                                          // array assignment
                     isVariableName(val)
                             && allLines.size() > i + 1
                             && allLines.get(i + 1).s.equals("[")
             ) {
-                nextIndex = i + checkSynArrAssign(allLines, i);
+                nextIndex = i + checkArrAssign(allLines, i);
             } else {
                 throw new SyntaxErrorException(allLines.get(i), "Cannot parse statement: \"" + val + "\"");
             }
@@ -247,14 +245,12 @@ class SyntaxCheck {
      * @param index of array name
      * @return lines to skip
      */
-    private int checkSynArrAssign(List<Line> allLines, int index) {
+    private int checkArrAssign(List<Line> allLines, int index) {
         int countLines = 0;
 
         // always
 
-        if(allLines.size() < index + 7                  // not long enough
-                || !allLines.get(index).absPath.equals(allLines.get(index + 7).absPath)
-        ) {
+        if(allLines.size() < index + 7) { // not long enough
             throw new SyntaxErrorException(allLines.get(index), "Not a complete assignment");
         }
 
@@ -266,7 +262,7 @@ class SyntaxCheck {
                     "Expected [, got :\"" + allLines.get(index + 1).s + "\".");
         }
 
-        countLines += checkSynArrAccess(allLines, index);
+        countLines += checkArrAccess(allLines, index);
 
         countLines += checkAssignMath(allLines, index + countLines + 1); // +1 for the '='
 
@@ -281,7 +277,7 @@ class SyntaxCheck {
      * @param index Index of array name in allLines
      * @return lines to skip
      */
-    private int checkSynArrAccess(List<Line> allLines, int index) {
+    private int checkArrAccess(List<Line> allLines, int index) {
         int countLines = 0;
 
         if(!isVariableName(allLines.get(index).s))
@@ -307,7 +303,7 @@ class SyntaxCheck {
             }
         }
 
-        if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+        if (closeIndex < 0) {
             throw new SyntaxErrorException(allLines.get(index), "No closing ']' found for array access.");
         }
 
@@ -354,15 +350,13 @@ class SyntaxCheck {
         if(end <= start)
             throw new SyntaxErrorException(allLines.get(start), "No mathematical expression found");
 
-        {
-            List<Line> lines = allLines.subList(start, end);
-            if (lines.isEmpty())
-                throw new SyntaxErrorException(new Line("", "ERR", -1),
-                        "Critical Error in checkMathExp. Empty list. No mathematical expression was found. This Could be a internal error"
-                );
+        List<Line> lines = allLines.subList(start, end);
+        if (lines.isEmpty())
+            throw new SyntaxErrorException(new Line("", "ERR", -1),
+                    "Critical Error in checkMathExp. Empty list. No mathematical expression was found. This Could be a internal error"
+            );
 
-            balancedParenthesis(lines);
-        }
+        balancedParenthesis(lines);
 
         if (allLines.get(start).s.equals("*") || allLines.get(start).s.equals("/") || allLines.get(start).s.equals("["))
             throw new SyntaxErrorException(allLines.get(start), "Unexpected \"" + allLines.get(start).s + "\"");
@@ -388,15 +382,15 @@ class SyntaxCheck {
                         throw new SyntaxErrorException(line, "Unexpected \"" + line.s + "\"");
                     if (line.s.equals("(")) {
                         // start new checkMathExp recursively
-                        nextIndex = i + checkSynMathExpInBrackets(i);
+                        nextIndex = i + checkMathExpInBrackets(i);
                         last = "VAL";
                     }
                     else if (isVariableName(line.s) && hasNext && allLines.get(i + 1).s.equals("(")) {
-                        nextIndex = i + checkSynInFunCall(allLines, i);
+                        nextIndex = i + checkInFunCall(allLines, i);
                         last = "VAL";
                     }
                     else if (isVariableName(line.s) && hasNext && allLines.get(i + 1).s.equals("[")) {
-                        nextIndex = i + checkSynArrAccess(allLines, i);
+                        nextIndex = i + checkArrAccess(allLines, i);
                         last = "VAL";
                     }
                     else if (isVariableName(line.s) || isNum(line.s))
@@ -420,15 +414,15 @@ class SyntaxCheck {
                 case "SIGN": {
                     if (line.s.equals("(")) {
                         // start new checkMathExp recursively
-                        nextIndex = i + checkSynMathExpInBrackets(i);
+                        nextIndex = i + checkMathExpInBrackets(i);
                         last = "VAL";
                     }
                     else if (isVariableName(line.s) && hasNext && allLines.get(i + 1).s.equals("(")) {
-                        nextIndex = i + checkSynInFunCall(allLines, i);
+                        nextIndex = i + checkInFunCall(allLines, i);
                         last = "VAL";
                     }
                     else if (isVariableName(line.s) && hasNext && allLines.get(i + 1).s.equals("[")) {
-                        nextIndex = i + checkSynArrAccess(allLines, i);
+                        nextIndex = i + checkArrAccess(allLines, i);
                         last = "VAL";
                     }
                     else if (isVariableName(line.s) || isNum(line.s))
@@ -453,7 +447,7 @@ class SyntaxCheck {
      * @param index Index where the "(" is located
      * @return lines to skip
      */
-    private int checkSynMathExpInBrackets(int index) {
+    private int checkMathExpInBrackets(int index) {
 
         // find closing ')'
         Deque<Character> stack = new ArrayDeque<>();
@@ -469,7 +463,7 @@ class SyntaxCheck {
                 }
             }
         }
-        if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+        if (closeIndex < 0) {
             throw new SyntaxErrorException(allLines.get(index), "No closing ')' found for function call.");
         }
         checkMathExp(index + 1, closeIndex);
@@ -482,7 +476,7 @@ class SyntaxCheck {
      * @param index of variable name
      * @return lines to skip
      */
-    private int checkSynVarAssign(List<Line> allLines, int index) {
+    private int checkVarAssign(List<Line> allLines, int index) {
         int countLines;
 
         if(!isVariableName(allLines.get(index).s)) {
@@ -502,7 +496,7 @@ class SyntaxCheck {
                 break;
             }
         }
-        if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+        if (closeIndex < 0) {
             throw new SyntaxErrorException(allLines.get(index), "No closing ';' found for assignment.");
         }
 
@@ -518,7 +512,7 @@ class SyntaxCheck {
      * @param index Index where the function name is in allLines
      * @return how many lines the function call goes
      */
-    private int checkSynInFunCall(List<Line> allLines, int index) {
+    private int checkInFunCall(List<Line> allLines, int index) {
         int countLines = 0;
 
         if(!isVariableName(allLines.get(index).s))
@@ -542,7 +536,7 @@ class SyntaxCheck {
                 }
             }
         }
-        if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+        if (closeIndex < 0) {
             throw new SyntaxErrorException(allLines.get(index), "No closing ')' found for function call.");
         }
 
@@ -562,7 +556,7 @@ class SyntaxCheck {
      * @param index of function call
      * @return lines to skip
      */
-    private int checkSynLineFunCall(List<Line> allLines, int index) {
+    private int checkLineFunCall(List<Line> allLines, int index) {
         int countLines;
 
         if(!isVariableName(allLines.get(index).s)) {
@@ -583,7 +577,7 @@ class SyntaxCheck {
             }
         }
 
-        if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+        if (closeIndex < 0) {
             throw new SyntaxErrorException(allLines.get(index), "No closing ';' found for function call.");
         }
         if(allLines.size() < closeIndex + 1 || !allLines.get(closeIndex).s.equals(";")) {
@@ -593,7 +587,7 @@ class SyntaxCheck {
             throw new SyntaxErrorException(allLines.get(index), "No closing ')' found.");
         }
 
-        countLines = checkSynInFunCall(allLines, index) + 1;
+        countLines = checkInFunCall(allLines, index) + 1;
 
         return countLines;
     }
@@ -604,7 +598,7 @@ class SyntaxCheck {
      * @param index of if
      * @return lines to skip
      */
-    private int checkSynReturn(List<Line> allLines, int index) {
+    private int checkReturn(List<Line> allLines, int index) {
         int countLines = 2;
 
         if(!allLines.get(index).s.equals(RETURN)) {
@@ -625,7 +619,7 @@ class SyntaxCheck {
      * @param index Index of if in allLines
      * @return lines to skip
      */
-    private int checkSynIfCond(List<Line> allLines, int index) {
+    private int checkIfCond(List<Line> allLines, int index) {
         int countLines = 0;
 
         if(!allLines.get(index).s.equals("if"))
@@ -637,13 +631,13 @@ class SyntaxCheck {
             throw new SyntaxErrorException(allLines.get(index + 1),
                     "Expected \"(\" for the condition if, got: \"" + allLines.get(index + 1).s + "\".");
 
-        countLines += checkSynMathExpInBrackets(index + 1);
+        countLines += checkMathExpInBrackets(index + 1);
 
         if(!allLines.get(index + countLines).s.equals("{"))
             throw new SyntaxErrorException(allLines.get(index + countLines),
                     "Expected \"{\" for the code block after if(), got: \"" + allLines.get(index + countLines).s + "\".");
 
-        countLines += checkSynCodeBlock(index + countLines);
+        countLines += checkCodeBlock(index + countLines);
 
         int nextIndex = -1;
         for (int i = index + countLines; i < allLines.size(); i++) {
@@ -657,13 +651,13 @@ class SyntaxCheck {
                     throw new SyntaxErrorException(allLines.get(index + countLines),
                             "Expected \"(\" after else if, got: \"" + allLines.get(index + countLines).s + "\".");
 
-                countLines += checkSynMathExpInBrackets(index + countLines);
+                countLines += checkMathExpInBrackets(index + countLines);
 
                 if(!allLines.get(index + countLines).s.equals("{"))
                     throw new SyntaxErrorException(allLines.get(index + countLines),
                             "Expected \"{\" for the code block after else if(), got: \"" + allLines.get(index + countLines).s + "\".");
 
-                countLines += checkSynCodeBlock(index + countLines);
+                countLines += checkCodeBlock(index + countLines);
 
                 nextIndex = index + countLines;
             } else if (i + 1 < allLines.size() && allLines.get(i).s.equals("else")) {
@@ -673,7 +667,7 @@ class SyntaxCheck {
                     throw new SyntaxErrorException(allLines.get(index + countLines),
                             "Expected \"{\" for the code block after else, got: \"" + allLines.get(index + countLines).s + "\".");
 
-                countLines += checkSynCodeBlock(index + countLines);
+                countLines += checkCodeBlock(index + countLines);
 
                 nextIndex = index + countLines;
             } else {
@@ -690,7 +684,7 @@ class SyntaxCheck {
      * @param index Index of while in allLines
      * @return lines to skip
      */
-    private int checkSynWhileLoop(List<Line> allLines, int index) {
+    private int checkWhileLoop(List<Line> allLines, int index) {
         int countLines = 0;
 
         if(!allLines.get(index).s.equals("while"))
@@ -702,13 +696,13 @@ class SyntaxCheck {
             throw new SyntaxErrorException(allLines.get(index + 1),
                     "Expected \"(\" for the condition at while loop, got: \"" + allLines.get(index + 1).s + "\".");
 
-        countLines += checkSynMathExpInBrackets(index + 1);
+        countLines += checkMathExpInBrackets(index + 1);
 
         if(!allLines.get(index + countLines).s.equals("{"))
             throw new SyntaxErrorException(allLines.get(index + countLines),
                     "Expected \"{\" for the code block after while(), got: \"" + allLines.get(index + countLines).s + "\".");
 
-        countLines += checkSynCodeBlock(index + countLines);
+        countLines += checkCodeBlock(index + countLines);
 
         return countLines;
     }
@@ -719,7 +713,7 @@ class SyntaxCheck {
      * @param index of declaration
      * @return lines to skip
      */
-    private int checkSynVarDec(List<Line> allLines, int index) {
+    private int checkVarDec(List<Line> allLines, int index) {
         int countLines;
 
         if (!isVariableName(allLines.get(index + 1).s)) {
@@ -732,6 +726,14 @@ class SyntaxCheck {
 
         countLines = 3 + checkAssignMath(allLines, index + 3);
 
+        int end = -1;
+        for (int i = index; i < allLines.size(); i++) {
+            if(allLines.get(i).s.equals(";"))
+                end = i;
+        }
+
+        coder.variableDefinition(allLines.subList(index, end + 1));
+
         return countLines;
     }
 
@@ -741,9 +743,8 @@ class SyntaxCheck {
      * @param index of declaration
      * @return lines to skip
      */
-    private int checkSynArrDec(int index) {
+    private int checkArrDec(int index) {
         int countLines;
-        String file = allLines.get(index).absPath;
 
         String varName = allLines.get(index + 3).s;
 
@@ -759,7 +760,7 @@ class SyntaxCheck {
 
         if (allLines.get(index + 5).s.equals("[")) {             // check if : "int name = [3];"
 
-            if (allLines.size() <= index + 8 || !file.equals(allLines.get(index + 8).absPath)) {
+            if (allLines.size() <= index + 8) {
                 throw new SyntaxErrorException(allLines.get(index + 6),
                         "Statement not complete.");
             } else if (!isNum(allLines.get(index + 6).s)) {
@@ -788,7 +789,7 @@ class SyntaxCheck {
                 }
             }
 
-            if (closeIndex < 0 || !allLines.get(index).absPath.equals(allLines.get(closeIndex).absPath)) {
+            if (closeIndex < 0) {
                 throw new SyntaxErrorException(allLines.get(index), "No closing '}' found.");
             } else if ((closeIndex - index) < 1) {
                 throw new SyntaxErrorException(allLines.get(index), "Array declaration values missing.");
@@ -824,10 +825,7 @@ class SyntaxCheck {
         // When we found a whole argument we send it to check for mathematical expression
         // After that we have to check the next argument.
 
-        {
-            List<Line> arguments = allLines.subList(start, end);
-            balancedParenthesis(arguments);
-        }
+        balancedParenthesis(allLines.subList(start, end));
 
         Deque<Character> stack = new ArrayDeque<>();
         int nextArgIndex = start;
@@ -919,45 +917,6 @@ class SyntaxCheck {
         }
     }
 
-    // check syntax of Compiler statement (Statements starting with '#')
-    private void checkSynComStat(Line line) {
-        String statement = line.s.substring(1);
-        String command = statement.split(" ")[0];
-
-        if (Arrays.asList(Compiler.COMPILER_KEYWORDS).contains(command)) {
-
-            if (command.equals(Compiler.COMPILER_KEYWORDS[0])) { // #include
-
-                if (statement.split(" ").length == 2) {
-
-                    String argument = statement.split(" ")[1];
-                    if (
-                            argument.charAt(0) != '"'
-                                    || argument.charAt(argument.length() - 1) != '"'
-                                    || argument.length() < 3
-                    ) {
-                        throw new SyntaxErrorException(
-                                line,
-                                "Cannot read expression: " + argument + "."
-                        );
-                    }
-
-                } else if (statement.split(" ").length < 2) {
-                    throw new SyntaxErrorException(line, "Compiler statement \"" + statement + "\" missing arguments");
-                } else {
-                    throw new SyntaxErrorException(line, "Compiler statement \"" + statement + "\" to many arguments");
-                }
-
-            }
-
-        } else {
-            throw new SyntaxErrorException(line, "Compiler command \"#" + command + "\" not found");
-        }
-
-    }
-
-
-
     /*
         ===========================
         =========  TOOLS  =========
@@ -968,12 +927,13 @@ class SyntaxCheck {
         throw new CompilerParseException(line.num, "Unexpected: " + line.s, line.fName);
     }
 
-    private boolean isNum(String number) {
+    public static boolean isNum(String number) {
         return number.matches("^\\d*$");
     }
 
-    private boolean isVariableName(String name) {
+    public static boolean isVariableName(String name) {
         name = name.strip();
         return name.matches("^[a-zA-Z_$][a-zA-Z_$\\d]*$");
     }
+
 }

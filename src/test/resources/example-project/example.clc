@@ -11,7 +11,7 @@ int easyTestVar = 0;
 int[] numbers = { 3, 0 };
 int[] nums = {1};
 int[] otherArray = [3];     // declare without setting values
-int lonelyNum41 = ((1 + 3) + 5);
+int lonelyNum41 = (3 + (1 + test()) + 5);
 //                          close statements with a ;
 
 void testFun() {

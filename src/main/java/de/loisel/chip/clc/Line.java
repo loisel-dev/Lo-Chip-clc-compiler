@@ -18,7 +18,7 @@ package de.loisel.chip.clc;
 
 import java.io.File;
 
-class Line {
+public class Line {
     public final String fName;
     public final String path;
     public final String absPath;
